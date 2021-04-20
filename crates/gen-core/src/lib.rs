@@ -1,11 +1,11 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, BTreeMap, btree_map::Entry};
 use witx::*;
 
 pub use witx;
 
 pub trait Generator {
-    fn preprocess(&mut self, doc: &Document, import: bool) {
-        drop((doc, import));
+    fn preprocess(&mut self, m: &Module, import: bool) {
+        drop((m, import));
     }
 
     fn type_record(&mut self, name: &Id, record: &RecordDatatype, docs: &str);
@@ -17,47 +17,45 @@ pub trait Generator {
     fn type_builtin(&mut self, name: &Id, ty: BuiltinType, docs: &str);
     fn type_buffer(&mut self, name: &Id, ty: &Buffer, docs: &str);
     fn const_(&mut self, name: &Id, ty: &Id, val: u64, docs: &str);
-    fn import(&mut self, module: &Id, func: &InterfaceFunc);
-    fn export(&mut self, module: &Id, func: &InterfaceFunc);
-    fn finish(&mut self) -> Files;
+    fn import(&mut self, module: &Id, func: &Function);
+    fn export(&mut self, module: &Id, func: &Function);
+    fn finish(&mut self, files: &mut Files);
 
-    fn generate(&mut self, doc: &Document, import: bool) -> Files {
-        self.preprocess(doc, import);
-        for ty in doc.typenames() {
+    fn generate(&mut self, m: &Module, import: bool, files: &mut Files) {
+        self.preprocess(m, import);
+        for ty in m.typenames() {
             let t = match &ty.tref {
                 TypeRef::Name(nt) => {
-                    self.type_alias(&ty.name, nt, &ty.docs);
+                    self.type_alias(&ty.name, &nt, &ty.docs);
                     continue;
                 }
                 TypeRef::Value(t) => t,
             };
             match &**t {
-                Type::Record(t) => self.type_record(&ty.name, t, &ty.docs),
-                Type::Variant(t) => self.type_variant(&ty.name, t, &ty.docs),
-                Type::Handle(t) => self.type_handle(&ty.name, t, &ty.docs),
-                Type::List(t) => self.type_list(&ty.name, t, &ty.docs),
-                Type::Pointer(t) => self.type_pointer(&ty.name, false, t, &ty.docs),
-                Type::ConstPointer(t) => self.type_pointer(&ty.name, true, t, &ty.docs),
+                Type::Record(t) => self.type_record(&ty.name, &t, &ty.docs),
+                Type::Variant(t) => self.type_variant(&ty.name, &t, &ty.docs),
+                Type::Handle(t) => self.type_handle(&ty.name, &t, &ty.docs),
+                Type::List(t) => self.type_list(&ty.name, &t, &ty.docs),
+                Type::Pointer(t) => self.type_pointer(&ty.name, false, &t, &ty.docs),
+                Type::ConstPointer(t) => self.type_pointer(&ty.name, true, &t, &ty.docs),
                 Type::Builtin(t) => self.type_builtin(&ty.name, *t, &ty.docs),
-                Type::Buffer(b) => self.type_buffer(&ty.name, b, &ty.docs),
+                Type::Buffer(b) => self.type_buffer(&ty.name, &b, &ty.docs),
             }
         }
 
-        for c in doc.constants() {
+        for c in m.constants() {
             self.const_(&c.name, &c.ty, c.value, &c.docs);
         }
 
-        for m in doc.modules() {
-            for f in m.funcs() {
-                if import {
-                    self.import(&m.name, &f);
-                } else {
-                    self.export(&m.name, &f);
-                }
+        for f in m.funcs() {
+            if import {
+                self.import(&m.name(), &f);
+            } else {
+                self.export(&m.name(), &f);
             }
         }
 
-        self.finish()
+        self.finish(files)
     }
 }
 
@@ -105,25 +103,23 @@ impl std::ops::BitOrAssign for TypeInfo {
 }
 
 impl Types {
-    pub fn analyze(&mut self, doc: &Document) {
-        for t in doc.typenames() {
+    pub fn analyze(&mut self, m: &Module) {
+        for t in m.typenames() {
             let info = self.type_ref_info(&t.tref);
             self.type_info.insert(t.name.clone(), info);
         }
-        for m in doc.modules() {
-            for f in m.funcs() {
-                for param in f.params.iter() {
-                    self.set_param_result_tref(&param.tref, true, false);
-                }
-                for param in f.results.iter() {
-                    self.set_param_result_tref(&param.tref, false, true);
-                }
-                self.maybe_set_dtor(doc, &f);
+        for f in m.funcs() {
+            for param in f.params.iter() {
+                self.set_param_result_tref(&param.tref, true, false);
             }
+            for param in f.results.iter() {
+                self.set_param_result_tref(&param.tref, false, true);
+            }
+            self.maybe_set_dtor(m, &f);
         }
     }
 
-    fn maybe_set_dtor(&mut self, doc: &Document, f: &InterfaceFunc) {
+    fn maybe_set_dtor(&mut self, m: &Module, f: &Function) {
         // Dtors only happen when the function has a singular parameter
         if f.params.len() != 1 {
             return;
@@ -150,7 +146,7 @@ impl Types {
 
         // ... and finally the actual type of this value must be a `(handle)`
         let id = Id::new(prefix);
-        let ty = match doc.typename(&id) {
+        let ty = match m.typename(&id) {
             Some(ty) => ty,
             None => return,
         };
@@ -257,12 +253,19 @@ impl Types {
 
 #[derive(Default)]
 pub struct Files {
-    files: Vec<(String, String)>,
+    files: BTreeMap<String, String>,
 }
 
 impl Files {
     pub fn push(&mut self, name: &str, contents: &str) {
-        self.files.push((name.to_string(), contents.to_string()));
+        match self.files.entry(name.to_owned()) {
+            Entry::Vacant(entry) => {
+                entry.insert(contents.to_owned());
+            }
+            Entry::Occupied(ref mut entry) => {
+                entry.get_mut().push_str(contents);
+            }
+        }
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&'_ str, &'_ str)> {

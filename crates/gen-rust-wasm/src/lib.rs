@@ -159,16 +159,12 @@ impl TypePrint for RustWasm {
 }
 
 impl Generator for RustWasm {
-    fn preprocess(&mut self, doc: &Document, import: bool) {
+    fn preprocess(&mut self, m: &Module, import: bool) {
         self.in_import = import;
-        self.types.analyze(doc);
-        assert!(
-            doc.modules().count() <= 1,
-            "only one module supported at this time"
-        );
-        if let Some(m) = doc.modules().next() {
-            self.trait_name = m.name.as_str().to_camel_case();
-        }
+        self.types.analyze(m);
+        self.trait_name = m.name().as_str().to_camel_case();
+        self.src
+            .push_str(&format!("mod {} {{", m.name().as_str().to_snake_case()));
     }
 
     fn type_record(&mut self, name: &Id, record: &RecordDatatype, docs: &str) {
@@ -295,7 +291,7 @@ impl Generator for RustWasm {
         ));
     }
 
-    fn import(&mut self, module: &Id, func: &InterfaceFunc) {
+    fn import(&mut self, module: &Id, func: &Function) {
         self.is_dtor = self.types.is_dtor_func(&func.name);
         self.params = self.print_signature(
             func,
@@ -328,7 +324,7 @@ impl Generator for RustWasm {
         self.src.push_str("}");
     }
 
-    fn export(&mut self, module: &Id, func: &InterfaceFunc) {
+    fn export(&mut self, module: &Id, func: &Function) {
         self.is_dtor = self.types.is_dtor_func(&func.name);
         let rust_name = func.name.as_ref().to_snake_case();
 
@@ -386,9 +382,7 @@ impl Generator for RustWasm {
         trait_.handles.extend(mem::take(&mut self.handles_for_func));
     }
 
-    fn finish(&mut self) -> Files {
-        let mut files = Files::default();
-
+    fn finish(&mut self, files: &mut Files) {
         let mut src = mem::take(&mut self.src);
 
         for (name, trait_) in self.traits.iter() {
@@ -429,8 +423,11 @@ impl Generator for RustWasm {
             let status = child.wait().unwrap();
             assert!(status.success());
         }
+
+        // Close the opening `mod`.
+        src.push_str("}");
+
         files.push("bindings.rs", &src);
-        files
     }
 }
 

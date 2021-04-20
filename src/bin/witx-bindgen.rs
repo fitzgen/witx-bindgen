@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use std::path::PathBuf;
 use structopt::StructOpt;
-use witx_bindgen_gen_core::{witx, Generator};
+use witx_bindgen_gen_core::{witx, Files, Generator};
 
 #[derive(Debug, StructOpt)]
 struct Opt {
@@ -54,8 +54,12 @@ fn main() -> Result<()> {
         anyhow::bail!("one of `--import` or `--export` must be used");
     }
 
-    let doc = witx::load(&common.witx)?;
-    let files = generator.generate(&doc, common.import);
+    let mut files = Files::default();
+    for witx in common.witx {
+        let m = witx::load(witx)?;
+        generator.generate(&m, common.import, &mut files);
+    }
+
     for (name, contents) in files.iter() {
         let dst = match &common.out_dir {
             Some(path) => path.join(name),
