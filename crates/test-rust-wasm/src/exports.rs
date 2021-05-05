@@ -9,13 +9,13 @@ use wasm::*;
 use std::sync::atomic::{AtomicU32, Ordering::SeqCst};
 use witx_bindgen_rust::exports::{InBuffer, InBufferRaw, OutBuffer, OutBufferRaw};
 
-struct MyWasm {
+struct Wasm {
     scalar: AtomicU32,
     wasm_state2_closed: AtomicU32,
 }
 
-fn wasm() -> &'static impl Wasm {
-    static ME: MyWasm = MyWasm {
+fn wasm() -> &'static Wasm {
+    static ME: Wasm = Wasm {
         scalar: AtomicU32::new(0),
         wasm_state2_closed: AtomicU32::new(0),
     };
@@ -23,10 +23,32 @@ fn wasm() -> &'static impl Wasm {
 }
 
 struct MyType(u32);
+unsafe impl witx_bindgen_rust::HandleIndex for MyType {
+    unsafe fn from_raw(raw: i32) -> Self {
+        Self(raw as u32)
+    }
+    fn into_raw(self) -> i32 {
+        self.0 as i32
+    }
+    fn as_raw(&self) -> i32 {
+        self.0 as i32
+    }
+}
 
 struct MyType2(u32);
+unsafe impl witx_bindgen_rust::HandleIndex for MyType2 {
+    unsafe fn from_raw(raw: i32) -> Self {
+        Self(raw as u32)
+    }
+    fn into_raw(self) -> i32 {
+        self.0 as i32
+    }
+    fn as_raw(&self) -> i32 {
+        self.0 as i32
+    }
+}
 
-impl Wasm for MyWasm {
+impl wasm::Wasm for Wasm {
     type WasmState = MyType;
     type WasmState2 = MyType2;
 

@@ -398,6 +398,17 @@ impl Generator for Wasmtime {
         }
         self.src.push_str(");\n");
 
+        // Implement `HandleIndex` for the type.
+        self.src.push_str(&format!(
+            "unsafe impl ::witx_bindgen_wasmtime::HandleIndex for {} {{",
+            tyname
+        ));
+        self.src
+            .push_str("unsafe fn from_raw(raw: i32) -> Self { Self(raw) }");
+        self.src.push_str("fn into_raw(self) -> i32 { self.0 }");
+        self.src.push_str("fn as_raw(&self) -> i32 { self.0 }");
+        self.src.push_str("}");
+
         if info.handle_with_dtor {
             self.src.push_str("impl ");
             self.src.push_str(&tyname);
@@ -732,7 +743,7 @@ impl Generator for Wasmtime {
             self.push_str("_to_linker<T: ");
             self.push_str(&module.as_str().to_camel_case());
             self.push_str(" + 'static>(module: T, ");
-            self.push_str("linker: &mut wasmtime::Linker) -> anyhow::Result<()> {\n");
+            self.push_str("linker: &mut wasmtime::Linker) -> anyhow::Result<std::rc::Rc<T>> {\n");
             self.push_str("let module = std::rc::Rc::new(module);\n");
             if self.needs_get_memory {
                 self.push_str(get_memory_from_caller);
@@ -768,7 +779,7 @@ impl Generator for Wasmtime {
                     f.closure,
                 ));
             }
-            self.push_str("Ok(())\n}\n");
+            self.push_str("Ok(module)\n}\n");
         }
 
         for (module, exports) in sorted_iter(&mem::take(&mut self.exports)) {

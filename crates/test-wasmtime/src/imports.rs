@@ -5,7 +5,7 @@ use witx_bindgen_wasmtime::{BorrowChecker, GuestPtr, Table};
 witx_bindgen_wasmtime::import!("tests/host.witx");
 
 #[derive(Default)]
-pub struct MyHost {
+pub struct Host {
     scalar: Cell<u32>,
     borrow_checker: BorrowChecker,
     host_state_table: Table<SuchState>,
@@ -17,7 +17,7 @@ pub struct SuchState(u32);
 
 // TODO: implement propagation of errors instead of `unwrap()` everywhere
 
-impl Host for MyHost {
+impl Host for host::Host {
     type HostState = SuchState;
     type HostState2 = ();
 

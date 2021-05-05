@@ -18,6 +18,7 @@ pub struct RustWasm {
     is_dtor: bool,
     in_import: bool,
     needs_cleanup_list: bool,
+    module: String,
     cleanup: Vec<(String, String)>,
     traits: BTreeMap<String, Trait>,
     handles_for_func: BTreeSet<String>,
@@ -209,21 +210,22 @@ impl Generator for RustWasm {
             "pub struct {}(i32);",
             name.as_str().to_camel_case()
         ));
-        self.src.push_str("impl ");
+        self.src
+            .push_str("unsafe impl ::witx_bindgen_rust::HandleIndex for ");
         self.src.push_str(&name.as_str().to_camel_case());
         self.src.push_str(
             " {
-                pub unsafe fn from_raw(raw: i32) -> Self {
+                unsafe fn from_raw(raw: i32) -> Self {
                     Self(raw)
                 }
 
-                pub fn into_raw(self) -> i32 {
+                fn into_raw(self) -> i32 {
                     let ret = self.0;
                     core::mem::forget(self);
                     return ret;
                 }
 
-                pub fn as_raw(&self) -> i32 {
+                fn as_raw(&self) -> i32 {
                     self.0
                 }
             }",
@@ -292,6 +294,7 @@ impl Generator for RustWasm {
     }
 
     fn import(&mut self, module: &Id, func: &Function) {
+        self.module = module.as_str().to_owned();
         self.is_dtor = self.types.is_dtor_func(&func.name);
         self.params = self.print_signature(
             func,
@@ -326,6 +329,7 @@ impl Generator for RustWasm {
     }
 
     fn export(&mut self, module: &Id, func: &Function) {
+        self.module = module.as_str().to_owned();
         self.is_dtor = self.types.is_dtor_func(&func.name);
         let rust_name = func.name.as_ref().to_snake_case();
 
@@ -394,7 +398,7 @@ impl Generator for RustWasm {
             for h in trait_.handles.iter() {
                 src.push_str("type ");
                 src.push_str(&h.to_camel_case());
-                src.push_str(";\n");
+                src.push_str(" : ::witx_bindgen_rust::HandleIndex;\n");
             }
             for f in trait_.methods.iter() {
                 src.push_str(&f);
@@ -567,7 +571,10 @@ impl Bindgen for RustWasm {
             }
             Instruction::I32FromBorrowedHandle { .. } => {
                 if self.is_dtor {
-                    results.push(format!("{}.into_raw()", operands[0]));
+                    results.push(format!(
+                        "::witx_bindgen_rust::HandleIndex::into_raw({})",
+                        operands[0]
+                    ));
                 } else {
                     results.push(format!("{}.0", operands[0]));
                 }
@@ -577,7 +584,13 @@ impl Bindgen for RustWasm {
                 if self.is_dtor {
                     results.push(format!("*Box::from_raw({} as *mut _)", operands[0],));
                 } else {
-                    results.push(format!("&*({} as *const _)", operands[0],));
+                    results.push(format!(
+                        "&<<super::{} as {}>::{} as ::witx_bindgen_rust::HandleIndex>::from_raw({})",
+                        self.module.to_camel_case(),
+                        self.module.to_camel_case(),
+                        ty.name.as_str().to_camel_case(),
+                        operands[0]
+                    ));
                 }
             }
             Instruction::HandleOwnedFromI32 { ty } => {
@@ -912,7 +925,9 @@ impl Bindgen for RustWasm {
 
             Instruction::CallInterface { module, func } => {
                 self.let_results(func.results.len(), results);
-                self.push_str("<_ as ");
+                self.push_str("<super::");
+                self.push_str(&module.to_camel_case());
+                self.push_str(" as ");
                 self.push_str(&module.to_camel_case());
                 self.push_str(">::");
                 self.push_str(func.name.as_str());
