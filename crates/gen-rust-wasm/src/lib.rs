@@ -207,7 +207,7 @@ impl Generator for RustWasm {
         self.src.push_str("#[derive(Debug)]\n");
         self.src.push_str("#[repr(transparent)]\n");
         self.src.push_str(&format!(
-            "pub struct {}(i32);",
+            "pub struct {}(u32);",
             name.as_str().to_camel_case()
         ));
         self.src
@@ -215,17 +215,17 @@ impl Generator for RustWasm {
         self.src.push_str(&name.as_str().to_camel_case());
         self.src.push_str(
             " {
-                unsafe fn from_raw(raw: i32) -> Self {
+                unsafe fn from_raw(raw: u32) -> Self {
                     Self(raw)
                 }
 
-                fn into_raw(self) -> i32 {
+                fn into_raw(self) -> u32 {
                     let ret = self.0;
                     core::mem::forget(self);
                     return ret;
                 }
 
-                fn as_raw(&self) -> i32 {
+                fn as_raw(&self) -> u32 {
                     self.0
                 }
             }",
@@ -572,11 +572,11 @@ impl Bindgen for RustWasm {
             Instruction::I32FromBorrowedHandle { .. } => {
                 if self.is_dtor {
                     results.push(format!(
-                        "::witx_bindgen_rust::HandleIndex::into_raw({})",
+                        "::witx_bindgen_rust::HandleIndex::into_raw({}) as i32",
                         operands[0]
                     ));
                 } else {
-                    results.push(format!("{}.0", operands[0]));
+                    results.push(format!("{}.0 as i32", operands[0]));
                 }
             }
             Instruction::HandleBorrowedFromI32 { ty } => {
@@ -585,7 +585,7 @@ impl Bindgen for RustWasm {
                     results.push(format!("*Box::from_raw({} as *mut _)", operands[0],));
                 } else {
                     results.push(format!(
-                        "&<<super::{} as {}>::{} as ::witx_bindgen_rust::HandleIndex>::from_raw({})",
+                        "&<<super::{} as {}>::{} as ::witx_bindgen_rust::HandleIndex>::from_raw({} as u32)",
                         self.module.to_camel_case(),
                         self.module.to_camel_case(),
                         ty.name.as_str().to_camel_case(),
@@ -595,7 +595,7 @@ impl Bindgen for RustWasm {
             }
             Instruction::HandleOwnedFromI32 { ty } => {
                 results.push(format!(
-                    "{}({})",
+                    "{}({} as u32)",
                     ty.name.as_str().to_camel_case(),
                     operands[0]
                 ));

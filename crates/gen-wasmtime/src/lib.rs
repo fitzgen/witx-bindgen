@@ -391,7 +391,7 @@ impl Generator for Wasmtime {
         if !info.handle_with_dtor {
             self.src.push_str("#[derive(Debug)]\n");
         }
-        self.src.push_str(&format!("pub struct {}(i32", tyname));
+        self.src.push_str(&format!("pub struct {}(u32", tyname));
         if info.handle_with_dtor {
             self.src
                 .push_str(", std::mem::ManuallyDrop<wasmtime::TypedFunc<(i32,), ()>>");
@@ -404,9 +404,9 @@ impl Generator for Wasmtime {
             tyname
         ));
         self.src
-            .push_str("unsafe fn from_raw(raw: i32) -> Self { Self(raw) }");
-        self.src.push_str("fn into_raw(self) -> i32 { self.0 }");
-        self.src.push_str("fn as_raw(&self) -> i32 { self.0 }");
+            .push_str("unsafe fn from_raw(raw: u32) -> Self { Self(raw) }");
+        self.src.push_str("fn into_raw(self) -> u32 { self.0 }");
+        self.src.push_str("fn as_raw(&self) -> u32 { self.0 }");
         self.src.push_str("}");
 
         if info.handle_with_dtor {
@@ -1079,7 +1079,7 @@ impl Bindgen for Wasmtime {
                 }
             }
             Instruction::I32FromBorrowedHandle { .. } => {
-                results.push(format!("{}.0", operands[0]));
+                results.push(format!("{}.0 as i32", operands[0]));
             }
             Instruction::HandleOwnedFromI32 { ty } => {
                 results.push(format!(

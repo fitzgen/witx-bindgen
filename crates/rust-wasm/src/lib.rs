@@ -17,16 +17,16 @@ unsafe extern "C" fn witx_free(ptr: *mut u8, len: usize, align: usize) {
     alloc::dealloc(ptr, layout);
 }
 
-/// A trait for handle types which are wrappers around `i32` indices.
+/// A trait for handle types which are wrappers around `u32` indices.
 pub unsafe trait HandleIndex {
-    /// Wrap an `i32` in a `Self`.
-    unsafe fn from_raw(raw: i32) -> Self;
+    /// Wrap a `u32` in a `Self`.
+    unsafe fn from_raw(raw: u32) -> Self;
 
-    /// Consume `self` and return the contained `i32`.
-    fn into_raw(self) -> i32;
+    /// Consume `self` and return the contained `u32`.
+    fn into_raw(self) -> u32;
 
-    /// Return the contained `i32`.
-    fn as_raw(&self) -> i32;
+    /// Return the contained `u32`.
+    fn as_raw(&self) -> u32;
 }
 
 pub mod exports;

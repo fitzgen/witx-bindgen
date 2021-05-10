@@ -24,27 +24,27 @@ fn wasm() -> &'static Wasm {
 
 struct MyType(u32);
 unsafe impl witx_bindgen_rust::HandleIndex for MyType {
-    unsafe fn from_raw(raw: i32) -> Self {
+    unsafe fn from_raw(raw: u32) -> Self {
         Self(raw as u32)
     }
-    fn into_raw(self) -> i32 {
-        self.0 as i32
+    fn into_raw(self) -> u32 {
+        self.0 as u32
     }
-    fn as_raw(&self) -> i32 {
-        self.0 as i32
+    fn as_raw(&self) -> u32 {
+        self.0 as u32
     }
 }
 
 struct MyType2(u32);
 unsafe impl witx_bindgen_rust::HandleIndex for MyType2 {
-    unsafe fn from_raw(raw: i32) -> Self {
+    unsafe fn from_raw(raw: u32) -> Self {
         Self(raw as u32)
     }
-    fn into_raw(self) -> i32 {
-        self.0 as i32
+    fn into_raw(self) -> u32 {
+        self.0
     }
-    fn as_raw(&self) -> i32 {
-        self.0 as i32
+    fn as_raw(&self) -> u32 {
+        self.0
     }
 }
 
